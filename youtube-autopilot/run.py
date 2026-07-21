@@ -19,10 +19,11 @@ import json
 import re
 import shutil
 from datetime import datetime, timezone
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-from autopilot import assemble, research, script_gen, state, tts, uploader, visuals
+from autopilot import assemble, clips, research, script_gen, state, tts, uploader, visuals
 from autopilot.config import (
     load_config, load_topics, require_env, resolve_channel, video_dimensions,
 )
@@ -152,6 +153,107 @@ def cmd_run(args: argparse.Namespace) -> None:
     print("Done.")
 
 
+def cmd_clip(args: argparse.Namespace) -> None:
+    channel = resolve_channel(args.channel)
+    cfg = load_config(channel["config"])
+    require_env("ANTHROPIC_API_KEY")
+    if shutil.which("ffmpeg") is None:
+        raise SystemExit("ffmpeg not found on PATH - install it first.")
+    if args.url:
+        clips.require_ytdlp()
+
+    aspect = args.aspect
+    ccfg = cfg.get("clips", {})
+    count = args.count or ccfg.get("count", 3)
+    min_s = args.min_seconds or ccfg.get("min_seconds", 15)
+    max_s = args.max_seconds or ccfg.get("max_seconds", 55)
+
+    source_label = args.url or str(args.file)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    workdir = channel["output_dir"] / f"{stamp}-clips"
+    workdir.mkdir(parents=True, exist_ok=True)
+    print(f"Channel: {channel['name']}  |  Format: {aspect}  |  Source: {source_label}")
+
+    # 1. Find the highlights: transcript mode if captions exist, else loudness.
+    cues = None
+    if args.url:
+        print("Fetching captions...")
+        vtt = clips.fetch_auto_subs(args.url, workdir)
+        if vtt is not None:
+            cues = clips.parse_vtt(vtt)
+            print(f"  {len(cues)} caption cues")
+
+    if cues:
+        print("Selecting highlights from the transcript...")
+        highlights = clips.select_highlights(
+            cfg, clips.compact_transcript(cues), count, min_s, max_s, args.context,
+        )
+    else:
+        if not args.context:
+            raise SystemExit(
+                "No captions found, so highlight titles can't be inferred. "
+                "Re-run with --context \"streamer name, game, what the stream was\"."
+            )
+        print("No captions - analyzing audio energy for highlight spikes...")
+        if args.url:
+            media = clips.download_audio(args.url, workdir)
+        else:
+            media = Path(args.file)
+            if media.parent != workdir:
+                shutil.copy(media, workdir / media.name)
+                media = workdir / media.name
+        windows = clips.audio_energy_windows(media, count, max_s, workdir)
+        highlights = [{"start_s": s, "end_s": e, "title": None} for s, e in windows]
+    print(f"  {len(highlights)} highlight(s) selected")
+
+    # 2. Produce and upload each clip.
+    for i, h in enumerate(highlights):
+        start, end = h["start_s"], h["end_s"]
+        print(f"Clip {i + 1}/{len(highlights)}: "
+              f"{clips._seconds_to_ts(start)}-{clips._seconds_to_ts(end)}")
+        if args.url:
+            raw = clips.download_section(args.url, start, end, i, workdir)
+        else:
+            raw = clips.cut_local_section(Path(args.file), start, end,
+                                          workdir / f"raw_{i:02d}.mp4")
+        srt = None
+        if cues and cfg["video"]["captions"]:
+            srt = clips.slice_srt(cues, start, end, workdir / f"clip_{i:02d}.srt")
+        final = clips.render_clip(raw, workdir / f"clip_{i:02d}.mp4", aspect, srt)
+
+        if h.get("title"):
+            title, description, tags = h["title"], h["description"], h["tags"]
+        else:
+            meta = clips.clip_metadata(cfg, args.context, aspect)
+            title, description, tags = meta["title"], meta["description"], meta["tags"]
+        if aspect == "short" and "#shorts" not in title.lower():
+            title = (title[:91] + " #Shorts") if len(title) > 91 else title + " #Shorts"
+        print(f"  title: {title}")
+
+        if args.no_upload:
+            print(f"  rendered (not uploaded): {final}")
+            continue
+        up = cfg["upload"]
+        video_id = uploader.upload_video(
+            final,
+            token_file=channel["token"],
+            title=title[:100],
+            description=description,
+            tags=tags[:15],
+            category_id=str(up["category_id"]),
+            privacy=up["privacy"],
+            publish_at=None,
+            notify_subscribers=up["notify_subscribers"],
+            thumbnail_path=None,
+        )
+        state.record_published(
+            channel["state_dir"],
+            f"clip: {source_label} @ {clips._seconds_to_ts(start)}",
+            title, video_id,
+        )
+    print("Done.")
+
+
 def cmd_topics(args: argparse.Namespace) -> None:
     channel = resolve_channel(args.channel)
     cfg = load_config(channel["config"])
@@ -182,6 +284,25 @@ def main() -> None:
     p_run.add_argument("--no-upload", action="store_true",
                        help="render the video but skip the upload")
 
+    p_clip = sub.add_parser(
+        "clip",
+        help="cut highlight clips from a stream VOD or local recording "
+             "(only content you own or have permission to clip)",
+    )
+    p_clip.add_argument("--channel", help="channel profile under channels/")
+    src = p_clip.add_mutually_exclusive_group(required=True)
+    src.add_argument("--url", help="VOD URL (anything yt-dlp supports)")
+    src.add_argument("--file", help="local recording path")
+    p_clip.add_argument("--count", type=int, help="number of clips to produce")
+    p_clip.add_argument("--aspect", choices=["short", "landscape"], default="short")
+    p_clip.add_argument("--context",
+                        help='e.g. "MyStreamName playing Cyberpunk 2077, chaos run" '
+                             "(required when the VOD has no captions)")
+    p_clip.add_argument("--min-seconds", type=int, dest="min_seconds")
+    p_clip.add_argument("--max-seconds", type=int, dest="max_seconds")
+    p_clip.add_argument("--no-upload", action="store_true",
+                        help="render clips but skip the upload")
+
     p_topics = sub.add_parser("topics", help="print fresh topic ideas")
     p_topics.add_argument("--channel", help="channel profile under channels/")
 
@@ -191,6 +312,8 @@ def main() -> None:
         uploader.run_auth_flow(ch["client_secret"], ch["token"])
     elif args.command == "run":
         cmd_run(args)
+    elif args.command == "clip":
+        cmd_clip(args)
     elif args.command == "topics":
         cmd_topics(args)
 

@@ -26,7 +26,9 @@ mixing Shorts and short regular videos. Per video it:
 8. **Publishes** — YouTube Data API upload with title/description/tags,
    optional scheduling, and the custom thumbnail.
 
-Supports 16:9 long-form and 9:16 Shorts, switchable per run.
+Supports 16:9 long-form and 9:16 Shorts, switchable per run — plus a
+**stream/VOD clipper** (`run.py clip`) that finds highlight moments in long
+recordings and cuts them into caption-burned clips (see below).
 
 ```
 topic queue ──┐
@@ -172,6 +174,46 @@ These are platform constraints, not bugs in the pipeline:
   description; keep it on.
 - **Titles** are capped at 100 characters, descriptions at 5,000; the pipeline
   enforces the title cap.
+
+## Clipping streams and VODs
+
+`run.py clip` turns long recordings — stream VODs, podcasts, your own gameplay
+sessions — into upload-ready highlight clips:
+
+```bash
+# 3 vertical Shorts from a VOD, auto-detected highlights, auto captions:
+python run.py clip --channel my-clips --url "https://youtube.com/watch?v=VOD_ID"
+
+# From a local recording, landscape, 5 clips, review before publishing:
+python run.py clip --channel my-clips --file recording.mp4 --aspect landscape \
+    --count 5 --context "my Cyberpunk 2077 chaos run" --no-upload
+```
+
+How it finds the highlights:
+
+- **Transcript mode** (URLs with captions): the VOD's captions are fetched
+  *without* downloading the video, Claude reads the timestamped transcript and
+  picks the strongest self-contained moments — clean starts, a real peak, an
+  ending right after the payoff — and writes each clip's title, description,
+  and tags in the same pass. Only the selected time-ranges are then
+  downloaded, so a 6-hour VOD doesn't mean a 6-hour download.
+- **Audio-energy fallback** (no captions — most Twitch VODs, local files):
+  loudness analysis finds the hype/laughter spikes and Claude writes honest
+  metadata from the `--context` you provide.
+
+Shorts get the standard clip-channel treatment: blurred-background 9:16
+layout with the original footage centered and captions burned in. Landscape
+clips keep the original frame. Clip length bounds and count are configurable
+per channel (`config.yaml → clips`).
+
+**Rights, in plain terms:** only clip content you own or have explicit
+permission to clip (your own streams, or creators who allow clip channels —
+many do, often with conditions like crediting or revenue share; check their
+rules). Clipping without permission invites copyright strikes, and YouTube's
+reused-content policy separately demonetizes re-uploads that add no original
+value — captions, tight editing, and good moment selection help, but
+permission is the foundation. The clipper never adds the AI-narration
+disclosure line since clips contain real people, not synthetic narration.
 
 ## Research and the quality gate
 

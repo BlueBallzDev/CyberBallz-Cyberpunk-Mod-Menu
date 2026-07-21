@@ -38,6 +38,11 @@ DEFAULTS = {
         "min_quality": 8,
         "max_revisions": 2,
     },
+    "clips": {
+        "count": 3,
+        "min_seconds": 15,
+        "max_seconds": 55,
+    },
 }
 
 
