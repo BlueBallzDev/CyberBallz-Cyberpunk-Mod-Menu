@@ -1,0 +1,10 @@
+# Topic queue. The pipeline takes the first topic that hasn't been published
+# yet (tracked in state/published.json). When the queue runs dry and
+# api.auto_topics is true, new ideas are generated automatically.
+
+topics:
+  - "Why solid-state batteries keep missing their launch dates"
+  - "The real reason nuclear fusion is always 30 years away"
+  - "How undersea cables carry 99% of the internet"
+  - "What actually happens when a chip fab makes a 2nm processor"
+  - "Why Japan still runs on floppy disks and fax machines"
