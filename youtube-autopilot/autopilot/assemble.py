@@ -1,8 +1,10 @@
-"""FFmpeg video assembly: normalize clips, concat, add narration + subtitles."""
+"""FFmpeg video assembly: normalize clips, crossfade, add narration + subtitles."""
 
 import json
 import subprocess
 from pathlib import Path
+
+FADE = 0.5  # crossfade duration between scenes, seconds
 
 
 def _run(args: list[str], cwd: Path) -> None:
@@ -32,7 +34,10 @@ def assemble_video(
 ) -> Path:
     """Build the final mp4. All intermediate files live in workdir."""
     total = probe_duration(narration_mp3)
-    per_scene = total / len(visuals)
+    n = len(visuals)
+    # Crossfades overlap segments, so pad each segment's length such that the
+    # joined video still matches the narration: n*per - (n-1)*FADE == total.
+    per_scene = (total + (n - 1) * FADE) / n
 
     scale = (
         f"scale={width}:{height}:force_original_aspect_ratio=increase,"
@@ -54,15 +59,29 @@ def assemble_video(
         )
         segments.append(seg)
 
-    # 2. Concatenate the uniform segments.
-    concat_list = workdir / "concat.txt"
-    concat_list.write_text("".join(f"file '{s.name}'\n" for s in segments))
+    # 2. Join the segments with crossfades (plain concat when there's only one).
     silent = workdir / "silent.mp4"
-    _run(
-        ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_list.name,
-         "-c", "copy", silent.name],
-        cwd=workdir,
-    )
+    if n == 1:
+        _run(["ffmpeg", "-y", "-i", segments[0].name, "-c", "copy", silent.name],
+             cwd=workdir)
+    else:
+        args = ["ffmpeg", "-y"]
+        for seg in segments:
+            args += ["-i", seg.name]
+        chains = []
+        prev = "[0:v]"
+        for i in range(1, n):
+            out = f"[v{i}]"
+            offset = i * (per_scene - FADE)
+            chains.append(
+                f"{prev}[{i}:v]xfade=transition=fade:duration={FADE}:offset={offset:.3f}{out}"
+            )
+            prev = out
+        args += [
+            "-filter_complex", ";".join(chains), "-map", prev,
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", silent.name,
+        ]
+        _run(args, cwd=workdir)
 
     # 3. Mux narration (and optional music), burn subtitles.
     final = workdir / "final.mp4"

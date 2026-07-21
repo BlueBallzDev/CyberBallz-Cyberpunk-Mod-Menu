@@ -1,4 +1,4 @@
-"""Configuration loading for youtube-autopilot."""
+"""Configuration and channel-profile loading for youtube-autopilot."""
 
 import os
 from pathlib import Path
@@ -6,8 +6,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-OUTPUT_DIR = ROOT / "output"
-STATE_DIR = ROOT / "state"
+CHANNELS_DIR = ROOT / "channels"
 
 DEFAULTS = {
     "channel": {
@@ -38,8 +37,41 @@ DEFAULTS = {
 }
 
 
-def load_config(path: Path | None = None) -> dict:
-    path = path or ROOT / "config.yaml"
+def resolve_channel(name: str | None) -> dict:
+    """Map a channel name to its file locations.
+
+    Without a name, the root-level config.yaml/topics.yaml act as a single
+    default channel. With a name, everything lives under channels/<name>/,
+    so each channel keeps its own config, topic queue, credentials, and
+    published log.
+    """
+    if name:
+        base = CHANNELS_DIR / name
+        if not base.is_dir():
+            available = sorted(
+                p.name for p in CHANNELS_DIR.iterdir() if p.is_dir()
+            ) if CHANNELS_DIR.is_dir() else []
+            raise SystemExit(
+                f"Unknown channel {name!r}. Available: {', '.join(available) or '(none)'}. "
+                f"Create channels/{name}/config.yaml to add it."
+            )
+        state_dir = base / "state"
+    else:
+        base = ROOT
+        state_dir = ROOT / "state"
+    return {
+        "name": name or "default",
+        "base": base,
+        "config": base / "config.yaml",
+        "topics": base / "topics.yaml",
+        "state_dir": state_dir,
+        "client_secret": base / "client_secret.json",
+        "token": state_dir / "token.json",
+        "output_dir": ROOT / "output" / (name or "default"),
+    }
+
+
+def load_config(path: Path) -> dict:
     cfg = {section: dict(values) for section, values in DEFAULTS.items()}
     if path.exists():
         with open(path, encoding="utf-8") as f:
@@ -52,8 +84,7 @@ def load_config(path: Path | None = None) -> dict:
     return cfg
 
 
-def load_topics(path: Path | None = None) -> list[str]:
-    path = path or ROOT / "topics.yaml"
+def load_topics(path: Path) -> list[str]:
     if not path.exists():
         return []
     with open(path, encoding="utf-8") as f:

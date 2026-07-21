@@ -8,40 +8,42 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-from .config import ROOT, STATE_DIR
-
 SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
-CLIENT_SECRET = ROOT / "client_secret.json"
-TOKEN_FILE = STATE_DIR / "token.json"
 
 
-def run_auth_flow() -> None:
-    """One-time interactive OAuth. Needs a browser; run on a desktop, then copy
-    state/token.json to the machine that does the uploading."""
-    if not CLIENT_SECRET.exists():
+def run_auth_flow(client_secret: Path, token_file: Path) -> None:
+    """One-time interactive OAuth per channel. Needs a browser; run on a
+    desktop, then copy the token file to the machine that does the uploading.
+
+    Sign in with the Google account that owns the target channel — the token
+    determines which channel receives the uploads."""
+    if not client_secret.exists():
         raise SystemExit(
-            f"Missing {CLIENT_SECRET}. Create an OAuth client (Desktop app) in "
+            f"Missing {client_secret}. Create an OAuth client (Desktop app) in "
             "Google Cloud Console and download it there. See README.md."
         )
-    flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRET), SCOPES)
+    flow = InstalledAppFlow.from_client_secrets_file(str(client_secret), SCOPES)
     creds = flow.run_local_server(port=0)
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    TOKEN_FILE.write_text(creds.to_json())
-    print(f"Saved credentials to {TOKEN_FILE}")
+    token_file.parent.mkdir(parents=True, exist_ok=True)
+    token_file.write_text(creds.to_json())
+    print(f"Saved credentials to {token_file}")
 
 
-def get_service():
-    if not TOKEN_FILE.exists():
-        raise SystemExit("Not authenticated. Run: python run.py auth")
-    creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+def get_service(token_file: Path):
+    if not token_file.exists():
+        raise SystemExit(
+            f"Not authenticated ({token_file} missing). Run: python run.py auth"
+        )
+    creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
-        TOKEN_FILE.write_text(creds.to_json())
+        token_file.write_text(creds.to_json())
     return build("youtube", "v3", credentials=creds)
 
 
 def upload_video(
     video_path: Path,
+    token_file: Path,
     title: str,
     description: str,
     tags: list[str],
@@ -51,7 +53,7 @@ def upload_video(
     notify_subscribers: bool,
     thumbnail_path: Path | None = None,
 ) -> str:
-    service = get_service()
+    service = get_service(token_file)
 
     status: dict = {
         "privacyStatus": privacy,

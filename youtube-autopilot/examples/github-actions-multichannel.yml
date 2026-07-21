@@ -1,0 +1,102 @@
+# Multi-channel, multi-post-per-day automation via GitHub Actions.
+#
+# This example runs three times a day. The two morning/evening runs produce a
+# Short for every channel; the midday run produces a regular landscape video.
+# Edit the matrix and cron lines to match your channels and cadence.
+#
+# To activate:
+#   1. Copy this file to .github/workflows/youtube-multichannel.yml
+#   2. Rename channels/example-* to your channel names (and in the matrix below).
+#   3. Add repository secrets:
+#        ANTHROPIC_API_KEY
+#        PEXELS_API_KEY                      (optional)
+#      and per channel (SHORTS/EXPLAINERS below match secret_prefix):
+#        YT_CLIENT_SECRET_SHORTS             contents of that channel's client_secret.json
+#        YT_TOKEN_SHORTS                     contents of channels/<name>/state/token.json
+#        YT_CLIENT_SECRET_EXPLAINERS
+#        YT_TOKEN_EXPLAINERS
+#      (tokens are created locally with: python run.py auth --channel <name>)
+#
+# Quota note: each upload costs 1,600 of the 10,000 daily units of the Google
+# Cloud project that owns the credentials. Use a separate Google Cloud project
+# per channel and 3 posts/day/channel fits comfortably.
+
+name: Multi-channel YouTube upload
+
+on:
+  schedule:
+    - cron: "0 13 * * *"   # 13:00 UTC — Shorts
+    - cron: "0 17 * * *"   # 17:00 UTC — regular videos
+    - cron: "0 22 * * *"   # 22:00 UTC — Shorts
+  workflow_dispatch:
+    inputs:
+      aspect:
+        description: "Format to produce"
+        type: choice
+        options: [short, landscape]
+        default: short
+
+permissions:
+  contents: write
+
+jobs:
+  produce-and-upload:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1        # serializes the state-file commits below
+      matrix:
+        include:
+          - channel: example-shorts
+            secret_prefix: SHORTS
+          - channel: example-explainers
+            secret_prefix: EXPLAINERS
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+
+      - name: Install dependencies
+        run: pip install -r youtube-autopilot/requirements.txt
+
+      - name: Choose format for this run
+        id: fmt
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "aspect=${{ inputs.aspect }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 17 * * *" ]; then
+            echo "aspect=landscape" >> "$GITHUB_OUTPUT"
+          else
+            echo "aspect=short" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Restore YouTube credentials
+        working-directory: youtube-autopilot
+        run: |
+          mkdir -p "channels/${{ matrix.channel }}/state"
+          printf '%s' "$YT_CLIENT_SECRET" > "channels/${{ matrix.channel }}/client_secret.json"
+          printf '%s' "$YT_TOKEN" > "channels/${{ matrix.channel }}/state/token.json"
+        env:
+          YT_CLIENT_SECRET: ${{ secrets[format('YT_CLIENT_SECRET_{0}', matrix.secret_prefix)] }}
+          YT_TOKEN: ${{ secrets[format('YT_TOKEN_{0}', matrix.secret_prefix)] }}
+
+      - name: Produce and upload
+        working-directory: youtube-autopilot
+        run: python run.py run --channel "${{ matrix.channel }}" --aspect "${{ steps.fmt.outputs.aspect }}"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+
+      - name: Persist published log
+        run: |
+          git config user.name "youtube-autopilot"
+          git config user.email "actions@users.noreply.github.com"
+          git add "youtube-autopilot/channels/${{ matrix.channel }}/state/published.json"
+          git diff --cached --quiet || git commit -m "Record published video (${{ matrix.channel }})"
+          git pull --rebase
+          git push
