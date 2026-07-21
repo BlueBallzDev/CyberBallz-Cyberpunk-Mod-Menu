@@ -33,11 +33,20 @@ def _searched_completion(cfg: dict, prompt: str) -> str:
         return "".join(b.text for b in response.content if b.type == "text")
 
 
-def research_trending_topic(cfg: dict, past_titles: list[str]) -> dict:
+def research_trending_topic(cfg: dict, past_titles: list[str],
+                            performance: str | None = None) -> dict:
     """Search the web for what's pulling attention in the niche right now and
     pick the single best next topic. Returns {"topic": str, "brief": str}."""
     ch = cfg["channel"]
     past = "\n".join(f"- {t}" for t in past_titles[-40:]) or "(none yet)"
+    performance_block = ""
+    if performance:
+        performance_block = f"""
+AUDIENCE SIGNAL - how this channel's videos have actually performed:
+{performance}
+Weigh this heavily: pick topics that rhyme with what held viewers, and avoid
+the patterns that lost them.
+"""
 
     brief = _searched_completion(cfg, f"""You are the research lead for a YouTube channel.
 
@@ -46,6 +55,7 @@ Audience: {ch['audience']}
 
 Videos already published (the new topic must not overlap these):
 {past}
+{performance_block}
 
 Search the web to find what is genuinely pulling attention in this niche right
 now: recent developments and announcements, questions people are suddenly

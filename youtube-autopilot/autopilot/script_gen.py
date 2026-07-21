@@ -88,7 +88,8 @@ def _create(cfg: dict, prompt: str, schema: dict, max_tokens: int = 16000) -> di
     return _extract_json(response)
 
 
-def generate_script(cfg: dict, topic: str, research: str | None = None) -> dict:
+def generate_script(cfg: dict, topic: str, research: str | None = None,
+                    performance: str | None = None) -> dict:
     """Return {title, description, tags, thumbnail_text, scenes:[{narration, footage_keywords}]}."""
     ch, vid = cfg["channel"], cfg["video"]
     is_short = vid["aspect"] == "short"
@@ -100,6 +101,13 @@ def generate_script(cfg: dict, topic: str, research: str | None = None) -> dict:
 VERIFIED RESEARCH (this is your factual backbone - build the script from these
 facts, keep them accurate, and do not invent claims beyond them):
 {research}
+"""
+    if performance:
+        research_block += f"""
+AUDIENCE SIGNAL - how this channel's videos have actually performed:
+{performance}
+Study what the top performers' titles and framing have in common and what the
+weak-retention videos did wrong, and apply that to this script and title.
 """
 
     prompt = f"""You are the head writer for a professional YouTube channel.
@@ -205,9 +213,10 @@ visual, title under 90 characters, tags 8-15, thumbnail_text at most 4 words."""
     return data
 
 
-def generate_polished_script(cfg: dict, topic: str, research: str | None = None) -> dict:
+def generate_polished_script(cfg: dict, topic: str, research: str | None = None,
+                             performance: str | None = None) -> dict:
     """Generate, then critique-and-revise until the package clears the bar."""
-    package = generate_script(cfg, topic, research)
+    package = generate_script(cfg, topic, research, performance)
     if not cfg["api"].get("quality_gate", True):
         return package
 

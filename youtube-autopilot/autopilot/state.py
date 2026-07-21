@@ -17,6 +17,12 @@ def load_published(state_dir: Path) -> list[dict]:
     return []
 
 
+def save_published(state_dir: Path, entries: list[dict]) -> None:
+    state_dir.mkdir(parents=True, exist_ok=True)
+    with open(_published_file(state_dir), "w", encoding="utf-8") as f:
+        json.dump(entries, f, indent=2)
+
+
 def record_published(state_dir: Path, topic: str, title: str, video_id: str | None) -> None:
     entries = load_published(state_dir)
     entries.append(
@@ -27,9 +33,7 @@ def record_published(state_dir: Path, topic: str, title: str, video_id: str | No
             "published_at": datetime.now(timezone.utc).isoformat(),
         }
     )
-    state_dir.mkdir(parents=True, exist_ok=True)
-    with open(_published_file(state_dir), "w", encoding="utf-8") as f:
-        json.dump(entries, f, indent=2)
+    save_published(state_dir, entries)
 
 
 def published_topics(state_dir: Path) -> set[str]:

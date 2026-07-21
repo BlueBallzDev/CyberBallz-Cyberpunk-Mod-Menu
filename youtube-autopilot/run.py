@@ -23,7 +23,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from autopilot import assemble, clips, research, script_gen, state, tts, uploader, visuals
+from autopilot import (
+    analytics, assemble, clips, research, script_gen, state, tts, uploader, visuals,
+)
 from autopilot.config import (
     load_config, load_topics, require_env, resolve_channel, video_dimensions,
 )
@@ -36,7 +38,21 @@ AI_DISCLOSURE_LINE = (
 SHORT_MAX_MINUTES = 0.9
 
 
-def pick_topic(cfg: dict, channel: dict, override: str | None) -> tuple[str, str | None]:
+def refresh_performance(channel: dict) -> str | None:
+    """Best-effort analytics refresh + digest. Never blocks production."""
+    try:
+        if channel["token"].exists():
+            updated = analytics.refresh_stats(channel)
+            if updated:
+                print(f"Analytics: refreshed stats for {updated} video(s)")
+    except Exception as e:
+        print(f"Analytics refresh skipped ({e}). If this is a permissions error, "
+              f"re-run: python run.py auth --channel {channel['name']}")
+    return analytics.performance_summary(state.load_published(channel["state_dir"]))
+
+
+def pick_topic(cfg: dict, channel: dict, override: str | None,
+               performance: str | None = None) -> tuple[str, str | None]:
     """Return (topic, research_brief_or_None)."""
     if override:
         return override, None
@@ -49,7 +65,7 @@ def pick_topic(cfg: dict, channel: dict, override: str | None) -> tuple[str, str
     if cfg["api"].get("research", True):
         print("Topic queue exhausted - researching what's trending in the niche...")
         for _ in range(3):
-            picked = research.research_trending_topic(cfg, past)
+            picked = research.research_trending_topic(cfg, past, performance)
             if picked["topic"] not in done:
                 return picked["topic"], picked["brief"]
         raise SystemExit("Research kept proposing already-covered topics.")
@@ -82,7 +98,11 @@ def cmd_run(args: argparse.Namespace) -> None:
     if not args.dry_run and shutil.which("ffmpeg") is None:
         raise SystemExit("ffmpeg not found on PATH - install it first.")
 
-    topic, brief = pick_topic(cfg, channel, args.topic)
+    performance = refresh_performance(channel)
+    if performance:
+        print("Analytics: feeding audience performance signal into generation")
+
+    topic, brief = pick_topic(cfg, channel, args.topic, performance)
     print(f"Channel: {channel['name']}  |  Format: {cfg['video']['aspect']}")
     print(f"Topic: {topic}")
 
@@ -91,7 +111,8 @@ def cmd_run(args: argparse.Namespace) -> None:
         brief = research.research_topic_facts(cfg, topic)
 
     print("Generating script + metadata...")
-    package = script_gen.generate_polished_script(cfg, topic, research=brief)
+    package = script_gen.generate_polished_script(cfg, topic, research=brief,
+                                                  performance=performance)
     description = package["description"]
     if cfg["upload"]["ai_disclosure"]:
         description += AI_DISCLOSURE_LINE
@@ -263,6 +284,24 @@ def cmd_topics(args: argparse.Namespace) -> None:
         print(f"- {topic}")
 
 
+def cmd_stats(args: argparse.Namespace) -> None:
+    channel = resolve_channel(args.channel)
+    updated = analytics.refresh_stats(channel)
+    entries = state.load_published(channel["state_dir"])
+    print(f"Channel: {channel['name']}  ({updated} video(s) refreshed)\n")
+    scored = [e for e in entries if e.get("stats")]
+    if not scored:
+        print("No analytics yet - stats appear once uploads have views.")
+        return
+    for e in sorted(scored, key=lambda e: e["stats"]["views"], reverse=True):
+        s = e["stats"]
+        print(f"{s['views']:>8} views  {s['avg_view_pct']:>5.1f}% watched  "
+              f"{s['subs_gained']:>4} subs  {e['title']}")
+    summary = analytics.performance_summary(entries)
+    if summary:
+        print("\nDigest fed to the model on the next run:\n" + summary)
+
+
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser(description=__doc__,
@@ -306,6 +345,10 @@ def main() -> None:
     p_topics = sub.add_parser("topics", help="print fresh topic ideas")
     p_topics.add_argument("--channel", help="channel profile under channels/")
 
+    p_stats = sub.add_parser(
+        "stats", help="refresh and show per-video analytics for a channel")
+    p_stats.add_argument("--channel", help="channel profile under channels/")
+
     args = parser.parse_args()
     if args.command == "auth":
         ch = resolve_channel(args.channel)
@@ -316,6 +359,8 @@ def main() -> None:
         cmd_clip(args)
     elif args.command == "topics":
         cmd_topics(args)
+    elif args.command == "stats":
+        cmd_stats(args)
 
 
 if __name__ == "__main__":

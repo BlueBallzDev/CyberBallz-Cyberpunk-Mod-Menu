@@ -8,7 +8,10 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+]
 
 
 def run_auth_flow(client_secret: Path, token_file: Path) -> None:
@@ -29,16 +32,22 @@ def run_auth_flow(client_secret: Path, token_file: Path) -> None:
     print(f"Saved credentials to {token_file}")
 
 
-def get_service(token_file: Path):
+def get_credentials(token_file: Path) -> Credentials:
     if not token_file.exists():
         raise SystemExit(
             f"Not authenticated ({token_file} missing). Run: python run.py auth"
         )
-    creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
+    # No scopes argument: use whatever scopes the stored token was granted, so
+    # tokens created before the analytics scope was added keep working for upload.
+    creds = Credentials.from_authorized_user_file(str(token_file))
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
         token_file.write_text(creds.to_json())
-    return build("youtube", "v3", credentials=creds)
+    return creds
+
+
+def get_service(token_file: Path):
+    return build("youtube", "v3", credentials=get_credentials(token_file))
 
 
 def upload_video(

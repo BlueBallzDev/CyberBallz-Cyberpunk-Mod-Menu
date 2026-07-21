@@ -81,6 +81,13 @@ Both keys are shared across all channels.
    `channels/<name>/state/token.json` determines where uploads land. For a
    headless server or CI, run auth locally once and copy the token file over.
 
+> **Important for unattended automation:** while your OAuth consent screen is
+> in **Testing** status, Google expires refresh tokens after 7 days — your
+> automation would silently stop uploading weekly. Set the consent screen to
+> **In production** (Cloud Console → OAuth consent screen → Publish app) so
+> tokens stay valid indefinitely. You don't need Google's verification review
+> for your own private use; "unverified app" warnings during auth are fine.
+
 ## Channels
 
 Each channel is a folder under `channels/`:
@@ -174,6 +181,36 @@ These are platform constraints, not bugs in the pipeline:
   description; keep it on.
 - **Titles** are capped at 100 characters, descriptions at 5,000; the pipeline
   enforces the title cap.
+
+## The performance feedback loop
+
+The system learns from your actual audience. Before every production run it
+pulls each published video's metrics from the YouTube Analytics API — views,
+watch minutes, average view duration, average percentage watched, likes,
+subscribers gained — stores them in the channel's `published.json`, and builds
+a what-worked/what-flopped digest (top performers by views, weakest videos by
+retention). That digest is injected into:
+
+- **trend research** — topic selection weighs toward subjects that rhyme with
+  what held your viewers;
+- **script + title generation** — the writer is told what your top titles and
+  framings have in common, and what the low-retention videos did wrong.
+
+It activates automatically once a channel has 3+ videos with view data; before
+that, runs behave as normal. Inspect what the model sees with:
+
+```bash
+python run.py stats --channel my-shorts
+```
+
+Notes:
+- The analytics scope was added to the OAuth flow — for channels authenticated
+  before this feature, re-run `python run.py auth --channel <name>` once.
+  (Uploads keep working on old tokens either way; the refresh just skips with
+  a hint until you re-auth.)
+- Click-through rate and impressions aren't exposed by the public Analytics
+  API (they're YouTube Studio-only), so retention percentage is the primary
+  quality signal — which is the metric the algorithm cares most about anyway.
 
 ## Clipping streams and VODs
 
