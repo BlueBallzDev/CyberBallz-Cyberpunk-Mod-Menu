@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 
-from autopilot import assemble, script_gen, state, tts, uploader, visuals
+from autopilot import assemble, research, script_gen, state, tts, uploader, visuals
 from autopilot.config import (
     load_config, load_topics, require_env, resolve_channel, video_dimensions,
 )
@@ -35,25 +35,34 @@ AI_DISCLOSURE_LINE = (
 SHORT_MAX_MINUTES = 0.9
 
 
-def pick_topic(cfg: dict, channel: dict, override: str | None) -> str:
+def pick_topic(cfg: dict, channel: dict, override: str | None) -> tuple[str, str | None]:
+    """Return (topic, research_brief_or_None)."""
     if override:
-        return override
+        return override, None
     done = state.published_topics(channel["state_dir"])
     for topic in load_topics(channel["topics"]):
         if topic not in done:
-            return topic
+            return topic, None
+
+    past = [e["title"] for e in state.load_published(channel["state_dir"])]
+    if cfg["api"].get("research", True):
+        print("Topic queue exhausted - researching what's trending in the niche...")
+        for _ in range(3):
+            picked = research.research_trending_topic(cfg, past)
+            if picked["topic"] not in done:
+                return picked["topic"], picked["brief"]
+        raise SystemExit("Research kept proposing already-covered topics.")
     if not cfg["api"]["auto_topics"]:
         raise SystemExit(
             f"Topic queue exhausted for channel {channel['name']!r}. "
-            "Add topics or enable api.auto_topics."
+            "Add topics or enable api.research / api.auto_topics."
         )
     print("Topic queue exhausted - generating fresh ideas...")
-    past = [e["title"] for e in state.load_published(channel["state_dir"])]
     ideas = script_gen.generate_topics(cfg, past)
     fresh = [t for t in ideas if t not in done]
     if not fresh:
         raise SystemExit("Could not generate an unused topic.")
-    return fresh[0]
+    return fresh[0], None
 
 
 def cmd_run(args: argparse.Namespace) -> None:
@@ -72,12 +81,16 @@ def cmd_run(args: argparse.Namespace) -> None:
     if not args.dry_run and shutil.which("ffmpeg") is None:
         raise SystemExit("ffmpeg not found on PATH - install it first.")
 
-    topic = pick_topic(cfg, channel, args.topic)
+    topic, brief = pick_topic(cfg, channel, args.topic)
     print(f"Channel: {channel['name']}  |  Format: {cfg['video']['aspect']}")
     print(f"Topic: {topic}")
 
+    if brief is None and cfg["api"].get("research", True):
+        print("Researching the topic (web search)...")
+        brief = research.research_topic_facts(cfg, topic)
+
     print("Generating script + metadata...")
-    package = script_gen.generate_script(cfg, topic)
+    package = script_gen.generate_polished_script(cfg, topic, research=brief)
     description = package["description"]
     if cfg["upload"]["ai_disclosure"]:
         description += AI_DISCLOSURE_LINE

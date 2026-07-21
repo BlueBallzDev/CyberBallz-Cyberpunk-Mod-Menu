@@ -33,6 +33,10 @@ DEFAULTS = {
     "api": {
         "model": "claude-opus-4-8",
         "auto_topics": True,
+        "research": True,
+        "quality_gate": True,
+        "min_quality": 8,
+        "max_revisions": 2,
     },
 }
 

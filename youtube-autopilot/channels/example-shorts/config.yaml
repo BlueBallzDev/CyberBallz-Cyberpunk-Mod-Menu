@@ -25,4 +25,8 @@ upload:
 
 api:
   model: claude-opus-4-8
+  research: true       # web-search fact checking + trend-driven topic picks
+  quality_gate: true   # strict critique-and-revise pass before production
+  min_quality: 8
+  max_revisions: 2
   auto_topics: true

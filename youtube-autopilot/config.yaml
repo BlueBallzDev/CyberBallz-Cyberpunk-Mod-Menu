@@ -28,6 +28,14 @@ upload:
 
 api:
   model: claude-opus-4-8
-  # When the topics.yaml queue is exhausted, generate fresh topic ideas
-  # automatically instead of stopping.
+  # Web-search research before every video: verifies facts for queued topics,
+  # and when the queue is empty, picks the currently-trending topic in the
+  # niche instead of inventing one blind.
+  research: true
+  # Critique-and-revise loop: a strict editorial pass scores each script 1-10
+  # and rewrites it until it clears min_quality (or max_revisions is hit).
+  quality_gate: true
+  min_quality: 8
+  max_revisions: 2
+  # Offline fallback for topic ideas when research is disabled.
   auto_topics: true

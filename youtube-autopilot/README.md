@@ -4,24 +4,36 @@ A fully automated faceless YouTube pipeline — now with **multi-channel
 support** so you can run several channels, each posting multiple times a day,
 mixing Shorts and short regular videos. Per video it:
 
-1. **Writes the video** — script, title, description, tags, and thumbnail text
-   via the Claude API, tuned to each channel's niche/tone.
-2. **Voices it** — free neural text-to-speech (edge-tts) with word-accurate
+1. **Researches it** — Claude searches the web before every video: verifying
+   facts and finding fresh angles for queued topics, and, when the queue is
+   empty, picking whatever is genuinely pulling attention in the niche that
+   week instead of guessing.
+2. **Writes the video** — script, title, description, tags, and thumbnail text
+   via the Claude API, tuned to each channel's niche/tone, built on the
+   verified research.
+3. **Quality-gates it** — a second, deliberately harsh editorial pass scores
+   every script 1–10 for hook strength, retention structure, factual soundness,
+   and naturalness (it hunts down generated-copy clichés specifically), then
+   rewrites until the script clears the configured bar. Nothing mediocre
+   reaches production.
+4. **Voices it** — free neural text-to-speech (edge-tts) with word-accurate
    subtitles generated as a side effect.
-3. **Sources visuals** — per-scene stock footage from Pexels (free API), with
+5. **Sources visuals** — per-scene stock footage from Pexels (free API), with
    generated background slides as a fallback.
-4. **Assembles the video** — FFmpeg normalizes clips, joins scenes with
+6. **Assembles the video** — FFmpeg normalizes clips, joins scenes with
    crossfade transitions, mixes optional background music, and burns captions.
-5. **Makes a thumbnail** — bold-text 1280x720 PNG.
-6. **Publishes** — YouTube Data API upload with title/description/tags,
+7. **Makes a thumbnail** — bold-text 1280x720 PNG.
+8. **Publishes** — YouTube Data API upload with title/description/tags,
    optional scheduling, and the custom thumbnail.
 
 Supports 16:9 long-form and 9:16 Shorts, switchable per run.
 
 ```
-topics.yaml ─▶ script (Claude) ─▶ TTS + SRT ─▶ stock footage ─▶ FFmpeg ─▶ upload
-                                                                  │
-                                             thumbnail.png ───────┘
+topic queue ──┐
+              ├─▶ web research ─▶ script ─▶ critique/revise loop ─▶ TTS + SRT
+trend search ─┘    (Claude)      (Claude)        (Claude)              │
+                                                                       ▼
+              upload ◀─ thumbnail ◀─ FFmpeg (crossfades) ◀─ stock footage
 ```
 
 ## Setup
@@ -161,6 +173,39 @@ These are platform constraints, not bugs in the pipeline:
 - **Titles** are capped at 100 characters, descriptions at 5,000; the pipeline
   enforces the title cap.
 
+## Research and the quality gate
+
+Both are on by default and configurable per channel in `config.yaml → api`:
+
+- `research: true` — before scripting, Claude runs live web searches. For a
+  queued topic it builds a verified fact sheet (numbers, names, dates, recent
+  developments, the misconception worth debunking) that becomes the script's
+  factual backbone. When the topic queue is empty it instead researches what's
+  currently rising in the niche and picks the topic with the best click **and
+  watch-time** potential — so an idle channel stays topical on its own.
+- `quality_gate: true` — every script is reviewed by a deliberately strict
+  editorial pass (an average script scores 6/10) checking hook strength,
+  retention structure (dead spots, missing re-hooks, saggy middles), factual
+  soundness against the research, packaging accuracy, and TTS-readiness. It
+  specifically flags generated-copy tells — clichés like "delve", "game-changer",
+  uniform sentence rhythm, tidy moralizing endings — and the script is rewritten
+  until it scores `min_quality` (default 8) or `max_revisions` is exhausted.
+
+The writing prompt itself enforces a spoken-voice style guide (contractions,
+aggressive sentence-length variation, concrete specifics, curiosity loops,
+a banned-phrase list), so the gate is a second net, not the only one.
+
+**On "not detectable as AI":** what actually gets automated channels flagged —
+by viewers and by YouTube — is *sloppy* AI content: generic scripts, factual
+errors, monotone pacing. That's what the research step, style guide, and gate
+attack, and it's the honest lever for views. What this pipeline won't do is
+help misrepresent provenance: the `ai_disclosure` description line stays as a
+config option, and YouTube separately requires disclosure for realistic
+synthetic media. A well-written, well-researched video with a good voice
+doesn't need to hide anything — quality reads as quality. For the last mile of
+"doesn't sound synthetic", the biggest single upgrade is a premium voice
+(swap `autopilot/tts.py` for ElevenLabs — ~60 lines).
+
 ## Tuning quality
 
 - `config.yaml → channel.*` matters most: the more specific the niche,
@@ -179,7 +224,11 @@ These are platform constraints, not bugs in the pipeline:
 
 | Item | Cost |
 |---|---|
-| Script generation (Claude) | ~$0.05–0.15 |
+| Web research (Claude + search) | ~$0.10–0.25 |
+| Script + quality gate (Claude) | ~$0.10–0.30 |
 | TTS (edge-tts) | Free |
 | Stock footage (Pexels) | Free |
 | YouTube upload | Free (quota-limited) |
+
+Roughly $0.20–0.55 per video all-in. Disable `research`/`quality_gate` per
+channel to trade quality for cost.
