@@ -1,0 +1,32 @@
+# Example channel profile: a Shorts-first channel.
+# Copy this folder to channels/<your-channel-name>/ and edit.
+# Each channel needs its own client_secret.json + `python run.py auth --channel <name>`.
+
+channel:
+  niche: "mind-blowing science and engineering facts in under a minute"
+  audience: "short-form viewers who scroll fast and reward strong hooks"
+  tone: "punchy, high-energy, zero filler - every sentence earns its place"
+  language: "English"
+
+video:
+  aspect: short
+  target_minutes: 0.75
+  voice: en-US-AriaNeural
+  voice_rate: "+8%"
+  captions: true
+  music: null
+
+upload:
+  privacy: public
+  category_id: "28"
+  notify_subscribers: true
+  publish_at: null
+  ai_disclosure: true
+
+api:
+  model: claude-opus-4-8
+  research: true       # web-search fact checking + trend-driven topic picks
+  quality_gate: true   # strict critique-and-revise pass before production
+  min_quality: 8
+  max_revisions: 2
+  auto_topics: true

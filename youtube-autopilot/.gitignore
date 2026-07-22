@@ -1,0 +1,9 @@
+.env
+client_secret.json
+state/token.json
+channels/*/client_secret.json
+channels/*/state/token.json
+output/
+assets/
+__pycache__/
+*.pyc

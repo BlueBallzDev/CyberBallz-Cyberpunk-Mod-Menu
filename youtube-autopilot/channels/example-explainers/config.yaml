@@ -1,0 +1,32 @@
+# Example channel profile: short regular videos (2-4 min explainers).
+# Copy this folder to channels/<your-channel-name>/ and edit.
+# Each channel needs its own client_secret.json + `python run.py auth --channel <name>`.
+
+channel:
+  niche: "how everyday systems secretly work - logistics, money, infrastructure"
+  audience: "curious adults who like feeling smarter on their lunch break"
+  tone: "calm, authoritative, story-driven - like a good documentary narrator"
+  language: "English"
+
+video:
+  aspect: landscape
+  target_minutes: 3
+  voice: en-US-GuyNeural
+  voice_rate: "+0%"
+  captions: true
+  music: null
+
+upload:
+  privacy: public
+  category_id: "27"
+  notify_subscribers: true
+  publish_at: null
+  ai_disclosure: true
+
+api:
+  model: claude-opus-4-8
+  research: true       # web-search fact checking + trend-driven topic picks
+  quality_gate: true   # strict critique-and-revise pass before production
+  min_quality: 8
+  max_revisions: 2
+  auto_topics: true
