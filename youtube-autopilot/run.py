@@ -147,6 +147,8 @@ def cmd_run(args: argparse.Namespace) -> None:
             caption_file = captions.write_ass_pop(
                 captions.load_words(words_json), workdir / "captions.ass",
                 width, height,
+                hook_text=(package.get("hook_text")
+                           if cfg["video"].get("hook_overlay", True) else None),
             )
         else:
             caption_file = srt

@@ -16,12 +16,13 @@ ASS_TEMPLATE = """[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
 PlayResY: {height}
-WrapStyle: 2
+WrapStyle: 0
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Pop,DejaVu Sans,{size},&H0000FFFF,&H00FFFFFF,&H00000000,&H96000000,-1,0,0,0,100,100,1,0,1,{outline},0,2,60,60,{margin_v},1
+Style: Hook,DejaVu Sans,{hook_size},&H00FFFFFF,&H00FFFFFF,&H00000000,&HA0000000,-1,0,0,0,100,100,1,0,3,{hook_pad},0,8,70,70,{hook_margin_v},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -52,13 +53,23 @@ def _groups(words: list[tuple[float, float, str]]):
 
 
 def write_ass_pop(words: list[tuple[float, float, str]], dest: Path,
-                  width: int, height: int) -> Path:
-    """Word-highlight karaoke captions, centered in the lower-middle of frame."""
+                  width: int, height: int, hook_text: str | None = None,
+                  hook_seconds: float = 3.0) -> Path:
+    """Word-highlight karaoke captions, centered in the lower-middle of frame,
+    plus an optional first-frame text-hook card (boxed, upper third) — the
+    "reason to care" every high-performing Short shows before anything happens."""
     size = max(28, int(height * 0.052))
+    hook_size = max(26, int(height * 0.042))
     lines = [ASS_TEMPLATE.format(
         width=width, height=height, size=size,
         outline=max(2, size // 14), margin_v=int(height * 0.33),
+        hook_size=hook_size, hook_pad=max(8, hook_size // 5),
+        hook_margin_v=int(height * 0.24),
     )]
+    if hook_text:
+        lines.append(
+            f"Dialogue: 1,{_ts(0.0)},{_ts(hook_seconds)},Hook,,0,0,0,,{hook_text}\n"
+        )
     for group in _groups(words):
         start, end = group[0][0], group[-1][1] + 0.05
         parts = []

@@ -10,7 +10,7 @@ channel:
 
 video:
   aspect: short
-  target_minutes: 0.75
+  target_minutes: 0.5    # ~30s — the 15-40s band is where Shorts loop best
   voice: en-US-AriaNeural
   voice_rate: "+8%"
   captions: true

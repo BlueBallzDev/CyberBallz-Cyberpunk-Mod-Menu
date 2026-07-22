@@ -134,6 +134,7 @@ def assemble_video(
             prev = out
         args += [
             "-filter_complex", ";".join(chains), "-map", prev,
+            "-pix_fmt", "yuv420p",  # xfade negotiates 4:4:4 otherwise — unplayable on many phones
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", silent.name,
         ]
         _run(args, cwd=workdir)
@@ -163,7 +164,8 @@ def assemble_video(
                 "OutlineColour=&H80000000&,BorderStyle=1,Outline=2,Shadow=0,MarginV=40"
             )
             args += ["-vf", f"subtitles={captions_path.name}:force_style='{style}'"]
-        args += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"]
+        args += ["-pix_fmt", "yuv420p",
+                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "20"]
     else:
         args += ["-c:v", "copy"]
     args += ["-c:a", "aac", "-b:a", "192k", "-shortest", final.name]
