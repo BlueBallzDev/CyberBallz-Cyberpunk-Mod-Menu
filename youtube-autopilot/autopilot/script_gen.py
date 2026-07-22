@@ -8,12 +8,13 @@ import anthropic
 SCRIPT_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["title", "description", "tags", "thumbnail_text", "scenes"],
+    "required": ["title", "description", "tags", "thumbnail_text", "hook_text", "scenes"],
     "properties": {
         "title": {"type": "string"},
         "description": {"type": "string"},
         "tags": {"type": "array", "items": {"type": "string"}},
         "thumbnail_text": {"type": "string"},
+        "hook_text": {"type": "string"},
         "scenes": {
             "type": "array",
             "items": {
@@ -146,6 +147,12 @@ METADATA:
   hashtags on the final line.
 - tags: 8-15 short search phrases, most specific first.
 - thumbnail_text: at most 4 punchy words for the thumbnail overlay.
+- hook_text: at most 7 words, shown as an on-screen text card over the first
+  seconds of the video. It must give a reason to care before anything happens -
+  a curiosity gap, not a label. Draft ten candidates internally, then output
+  only the strongest one. It must not duplicate the title or the first
+  narration line word-for-word.
+- {"End within one beat of the payoff - no outro, no wind-down - so the loop back to the first frame feels seamless." if is_short else "Land the ending on the payoff; no padded outro."}
 - Factual accuracy beats drama. If a claim is uncertain, soften it or cut it."""
 
     data = _create(cfg, prompt, SCRIPT_SCHEMA)
@@ -179,7 +186,9 @@ offending text where possible. Check for:
    Numbers written in ways a narrator would stumble on.
 5. TITLE AND PACKAGING - does the title over-promise what the script delivers?
    Is the thumbnail text punchy and non-redundant with the title? Does the
-   description's first line hook?
+   description's first line hook? Does hook_text (the first-frame text card)
+   open a real curiosity gap in 7 words or fewer, without duplicating the
+   title or first narration line?
 6. TTS-READINESS - anything a text-to-speech voice would mangle: abbreviations,
    symbols, awkward parentheticals.
 
@@ -206,7 +215,8 @@ EDITORIAL ISSUES TO RESOLVE:
 
 Return the complete revised package in the same structure: same approximate
 narration length, same scene-count range, footage_keywords still concrete and
-visual, title under 90 characters, tags 8-15, thumbnail_text at most 4 words."""
+visual, title under 90 characters, tags 8-15, thumbnail_text at most 4 words,
+hook_text at most 7 words."""
     data = _create(cfg, prompt, SCRIPT_SCHEMA)
     data["title"] = data["title"][:100]
     data["tags"] = data["tags"][:15]

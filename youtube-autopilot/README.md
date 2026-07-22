@@ -20,8 +20,13 @@ mixing Shorts and short regular videos. Per video it:
    subtitles generated as a side effect.
 5. **Sources visuals** — per-scene stock footage from Pexels (free API), with
    generated background slides as a fallback.
-6. **Assembles the video** — FFmpeg normalizes clips, joins scenes with
-   crossfade transitions, mixes optional background music, and burns captions.
+6. **Assembles the video** — FFmpeg normalizes clips, adds a slow Ken Burns
+   push to every scene (alternating in/out so nothing sits static), applies a
+   light color grade + vignette, joins scenes with crossfades, ducks optional
+   music under the voice, and burns captions. Shorts get word-pop karaoke
+   captions (2-3 word groups, spoken word highlighted, center-third placement
+   — the current retention meta); landscape gets a classic bottom caption bar.
+   Both are per-channel configurable (`caption_style`, `motion`, `grade`).
 7. **Makes a thumbnail** — bold-text 1280x720 PNG.
 8. **Publishes** — YouTube Data API upload with title/description/tags,
    optional scheduling, and the custom thumbnail.
@@ -56,9 +61,12 @@ cp .env.example .env   # then fill in the keys
 | Key | Where | Cost |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | platform.claude.com | Pennies per video (one script call) |
-| `PEXELS_API_KEY` | pexels.com/api | Free (optional — slides fallback without it) |
+| `PEXELS_API_KEY` | pexels.com/api | Free (optional) |
+| `PIXABAY_API_KEY` | pixabay.com/api/docs | Free (optional) |
 
-Both keys are shared across all channels.
+Keys are shared across all channels. The two footage providers are
+interchangeable — either alone works, both together maximize the match rate
+(tried in order per scene: Pexels → Pixabay → generated slide).
 
 ### 3. YouTube upload credentials (one-time, per channel)
 

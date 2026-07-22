@@ -366,7 +366,8 @@ def render_clip(raw: Path, dest: Path, aspect: str, srt: Path | None) -> Path:
         if srt is not None:
             args += ["-vf", f"subtitles={srt.name}:force_style='{SUB_STYLE.format(size=16)}'"]
         args += ["-map", "0:v", "-map", "0:a?"]
-    args += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+    args += ["-pix_fmt", "yuv420p",
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
              "-c:a", "aac", "-b:a", "192k", dest.name]
     _ff(args, cwd=workdir)
     return dest
