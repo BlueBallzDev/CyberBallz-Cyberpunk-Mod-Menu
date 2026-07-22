@@ -18,8 +18,11 @@ DEFAULTS = {
     "video": {
         "aspect": "landscape",
         "target_minutes": 4,
-        "voice": "en-US-GuyNeural",
+        "voice_provider": "edge",       # edge (free) or elevenlabs (premium)
+        "voice": "en-US-GuyNeural",     # edge-tts voice
         "voice_rate": "+0%",
+        "elevenlabs_voice_id": "21m00Tcm4TlvDq8ikWAM",
+        "elevenlabs_model": "eleven_multilingual_v2",
         "captions": True,
         "music": None,
     },

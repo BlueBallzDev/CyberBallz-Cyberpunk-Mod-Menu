@@ -10,8 +10,11 @@ channel:
 video:
   aspect: landscape        # landscape (16:9 long-form) or short (9:16 vertical)
   target_minutes: 4        # shorts should be <= 0.9
-  voice: en-US-GuyNeural   # any edge-tts voice; list with: edge-tts --list-voices
-  voice_rate: "+0%"        # e.g. "+10%" to speak faster
+  voice_provider: edge     # edge (free) or elevenlabs (premium, most natural;
+                           # needs ELEVENLABS_API_KEY in .env)
+  voice: en-US-GuyNeural   # edge-tts voice; list with: edge-tts --list-voices
+  voice_rate: "+0%"        # e.g. "+10%" to speak faster (edge only)
+  # elevenlabs_voice_id: 21m00Tcm4TlvDq8ikWAM   # pick from your ElevenLabs voices
   captions: true           # burn subtitles into the video
   music: null              # optional path to a background music file you have rights to
 

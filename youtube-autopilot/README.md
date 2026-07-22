@@ -290,9 +290,19 @@ doesn't need to hide anything — quality reads as quality. For the last mile of
 - `config.yaml → channel.*` matters most: the more specific the niche,
   audience, and tone, the better the scripts. This is also your main tool for
   making channels feel distinct from each other.
-- Pick a distinct voice per channel: `edge-tts --list-voices`. For a paid
-  quality bump, `autopilot/tts.py` is ~60 lines and easy to swap for
-  ElevenLabs or OpenAI TTS.
+- **Voices.** Two providers, per channel via `video.voice_provider`:
+  - `edge` (default, free): pick a distinct voice per channel from
+    `edge-tts --list-voices`.
+  - `elevenlabs` (premium, the biggest "doesn't sound synthetic" upgrade):
+    set `ELEVENLABS_API_KEY` in `.env` and optionally
+    `video.elevenlabs_voice_id` (any voice from your ElevenLabs library).
+    Word-level timestamps come from the API, so burned captions stay
+    perfectly synced. Long scripts are chunked at sentence boundaries
+    automatically. Cost is roughly $0.10–0.30 per minute of narration
+    depending on your plan.
+- **Thumbnails** are built from an actual frame of the finished video
+  (darkened, with the bold text overlay) — falling back to a gradient if the
+  frame grab fails.
 - Background music: put a file you have rights to at
   `channels/<name>/assets/music.mp3` and set `video.music: assets/music.mp3`.
   It's mixed at low volume under the narration.

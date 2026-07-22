@@ -23,6 +23,17 @@ def probe_duration(path: Path) -> float:
     return float(json.loads(result.stdout)["format"]["duration"])
 
 
+def extract_frame(video: Path, dest: Path, at_fraction: float = 0.25) -> Path:
+    """Grab a representative frame from the finished video for the thumbnail."""
+    t = probe_duration(video) * at_fraction
+    _run(
+        ["ffmpeg", "-y", "-ss", f"{t:.2f}", "-i", video.name,
+         "-frames:v", "1", dest.name],
+        cwd=video.parent,
+    )
+    return dest
+
+
 def assemble_video(
     visuals: list[Path],
     narration_mp3: Path,
