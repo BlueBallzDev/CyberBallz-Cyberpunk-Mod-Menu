@@ -133,8 +133,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     narration_text = " ".join(s["narration"] for s in package["scenes"])
     mp3 = workdir / "narration.mp3"
     srt = workdir / "captions.srt"
-    tts.synthesize(narration_text, cfg["video"]["voice"], mp3, srt,
-                   rate=cfg["video"]["voice_rate"])
+    tts.synthesize(narration_text, cfg["video"], mp3, srt)
 
     width, height = video_dimensions(cfg)
     print("Fetching visuals...")
@@ -150,7 +149,13 @@ def cmd_run(args: argparse.Namespace) -> None:
     )
     print(f"  rendered: {final}")
 
-    thumb = make_thumbnail(package["thumbnail_text"], workdir / "thumbnail.png")
+    frame = None
+    try:
+        frame = assemble.extract_frame(final, workdir / "frame.png")
+    except Exception as e:
+        print(f"  frame grab failed, using gradient thumbnail: {e}")
+    thumb = make_thumbnail(package["thumbnail_text"], workdir / "thumbnail.png",
+                           frame=frame)
 
     if args.no_upload:
         print("Skipping upload (--no-upload). Video is ready in the output folder.")

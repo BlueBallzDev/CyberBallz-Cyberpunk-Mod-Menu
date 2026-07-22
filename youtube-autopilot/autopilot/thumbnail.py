@@ -3,7 +3,7 @@
 import textwrap
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageEnhance, ImageFont
 
 FONT_CANDIDATES = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
@@ -39,8 +39,26 @@ def _gradient(width: int, height: int, top: tuple, bottom: tuple) -> Image.Image
     return img
 
 
-def make_thumbnail(text: str, dest: Path, width: int = 1280, height: int = 720) -> Path:
-    img = _gradient(width, height, *PALETTES[0])
+def make_thumbnail(text: str, dest: Path, width: int = 1280, height: int = 720,
+                   frame: Path | None = None) -> Path:
+    """Bold-text thumbnail. When a video frame is supplied it becomes the
+    darkened background; otherwise a gradient is used."""
+    img = None
+    if frame is not None and frame.exists():
+        try:
+            img = Image.open(frame).convert("RGB")
+            # cover-fit to thumbnail size
+            scale = max(width / img.width, height / img.height)
+            img = img.resize((int(img.width * scale) + 1, int(img.height * scale) + 1))
+            left = (img.width - width) // 2
+            top = (img.height - height) // 2
+            img = img.crop((left, top, left + width, top + height))
+            img = ImageEnhance.Brightness(img).enhance(0.55)
+            img = ImageEnhance.Contrast(img).enhance(1.15)
+        except OSError:
+            img = None
+    if img is None:
+        img = _gradient(width, height, *PALETTES[0])
     draw = ImageDraw.Draw(img)
     # accent bar
     draw.rectangle([(0, height - 24), (width, height)], fill=(255, 196, 0))
