@@ -56,9 +56,12 @@ cp .env.example .env   # then fill in the keys
 | Key | Where | Cost |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | platform.claude.com | Pennies per video (one script call) |
-| `PEXELS_API_KEY` | pexels.com/api | Free (optional — slides fallback without it) |
+| `PEXELS_API_KEY` | pexels.com/api | Free (optional) |
+| `PIXABAY_API_KEY` | pixabay.com/api/docs | Free (optional) |
 
-Both keys are shared across all channels.
+Keys are shared across all channels. The two footage providers are
+interchangeable — either alone works, both together maximize the match rate
+(tried in order per scene: Pexels → Pixabay → generated slide).
 
 ### 3. YouTube upload credentials (one-time, per channel)
 
