@@ -16,7 +16,10 @@ video:
   voice_rate: "+0%"        # e.g. "+10%" to speak faster (edge only)
   # elevenlabs_voice_id: 21m00Tcm4TlvDq8ikWAM   # pick from your ElevenLabs voices
   captions: true           # burn subtitles into the video
-  music: null              # optional path to a background music file you have rights to
+  caption_style: auto      # auto = word-pop karaoke on Shorts, classic bottom bar on landscape
+  motion: true             # slow Ken Burns push on every scene (nothing sits static)
+  grade: true              # light contrast/saturation lift + vignette
+  music: null              # optional music file you have rights to; auto-ducked under the voice
 
 upload:
   privacy: public          # public | unlisted | private

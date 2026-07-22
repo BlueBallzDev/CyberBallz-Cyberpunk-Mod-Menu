@@ -25,19 +25,24 @@ ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-ti
 ELEVENLABS_CHUNK_CHARS = 2500
 
 
-def synthesize(text: str, video_cfg: dict, mp3_path: Path, srt_path: Path) -> None:
+def synthesize(text: str, video_cfg: dict, mp3_path: Path, srt_path: Path,
+               words_path: Path | None = None) -> None:
     provider = video_cfg.get("voice_provider", "edge")
     if provider == "elevenlabs":
-        _synthesize_elevenlabs(text, video_cfg, mp3_path, srt_path)
+        words = _synthesize_elevenlabs(text, video_cfg, mp3_path, srt_path)
     elif provider == "edge":
-        asyncio.run(_synthesize_edge(text, video_cfg, mp3_path, srt_path))
+        words = asyncio.run(_synthesize_edge(text, video_cfg, mp3_path, srt_path))
     else:
         raise SystemExit(f"Unknown voice_provider {provider!r} (use edge or elevenlabs)")
+    if words_path is not None:
+        import json
+        words_path.write_text(json.dumps(words), encoding="utf-8")
 
 
 # ------------------------------------------------------------------ edge-tts
 
-async def _synthesize_edge(text: str, video_cfg: dict, mp3_path: Path, srt_path: Path) -> None:
+async def _synthesize_edge(text: str, video_cfg: dict, mp3_path: Path,
+                           srt_path: Path) -> list[tuple[float, float, str]]:
     communicate = edge_tts.Communicate(
         text, video_cfg.get("voice", "en-US-GuyNeural"),
         rate=video_cfg.get("voice_rate", "+0%"),
@@ -54,11 +59,13 @@ async def _synthesize_edge(text: str, video_cfg: dict, mp3_path: Path, srt_path:
                     chunk["text"],
                 ))
     write_srt(words, srt_path)
+    return words
 
 
 # ---------------------------------------------------------------- elevenlabs
 
-def _synthesize_elevenlabs(text: str, video_cfg: dict, mp3_path: Path, srt_path: Path) -> None:
+def _synthesize_elevenlabs(text: str, video_cfg: dict, mp3_path: Path,
+                           srt_path: Path) -> list[tuple[float, float, str]]:
     api_key = os.environ.get("ELEVENLABS_API_KEY")
     if not api_key:
         raise SystemExit(
@@ -90,6 +97,7 @@ def _synthesize_elevenlabs(text: str, video_cfg: dict, mp3_path: Path, srt_path:
 
     mp3_path.write_bytes(audio)
     write_srt(words, srt_path)
+    return words
 
 
 def chunk_text(text: str, limit: int) -> list[str]:

@@ -24,7 +24,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from autopilot import (
-    analytics, assemble, clips, research, script_gen, state, tts, uploader, visuals,
+    analytics, assemble, captions, clips, research, script_gen, state, tts,
+    uploader, visuals,
 )
 from autopilot.config import (
     load_config, load_topics, require_env, resolve_channel, video_dimensions,
@@ -133,19 +134,34 @@ def cmd_run(args: argparse.Namespace) -> None:
     narration_text = " ".join(s["narration"] for s in package["scenes"])
     mp3 = workdir / "narration.mp3"
     srt = workdir / "captions.srt"
-    tts.synthesize(narration_text, cfg["video"], mp3, srt)
+    words_json = workdir / "words.json"
+    tts.synthesize(narration_text, cfg["video"], mp3, srt, words_path=words_json)
 
     width, height = video_dimensions(cfg)
+    caption_file = None
+    if cfg["video"]["captions"]:
+        style = cfg["video"].get("caption_style", "auto")
+        if style == "auto":
+            style = "pop" if cfg["video"]["aspect"] == "short" else "classic"
+        if style == "pop" and words_json.exists():
+            caption_file = captions.write_ass_pop(
+                captions.load_words(words_json), workdir / "captions.ass",
+                width, height,
+            )
+        else:
+            caption_file = srt
+
     print("Fetching visuals...")
-    clips = visuals.fetch_scene_visuals(package["scenes"], workdir, width, height)
+    scene_visuals = visuals.fetch_scene_visuals(package["scenes"], workdir, width, height)
 
     print("Assembling video...")
     music = cfg["video"]["music"]
     final = assemble.assemble_video(
-        clips, mp3,
-        srt if cfg["video"]["captions"] else None,
+        scene_visuals, mp3, caption_file,
         workdir, width, height,
         music=(channel["base"] / music) if music else None,
+        motion=cfg["video"].get("motion", True),
+        grade=cfg["video"].get("grade", True),
     )
     print(f"  rendered: {final}")
 

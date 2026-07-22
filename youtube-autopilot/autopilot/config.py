@@ -24,6 +24,9 @@ DEFAULTS = {
         "elevenlabs_voice_id": "21m00Tcm4TlvDq8ikWAM",
         "elevenlabs_model": "eleven_multilingual_v2",
         "captions": True,
+        "caption_style": "auto",        # auto: pop for Shorts, classic for landscape
+        "motion": True,                 # Ken Burns push on every scene
+        "grade": True,                  # light contrast/saturation + vignette
         "music": None,
     },
     "upload": {
